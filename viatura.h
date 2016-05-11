@@ -3,6 +3,10 @@
   *
   */
 
+#define RES_ENTRADA 0
+#define RES_SAIDA 1
+#define RES_CHEIO 2
+#define RES_ENCERRADO 3
 
 typedef struct{
   char portaEntrada;
