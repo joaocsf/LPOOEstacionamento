@@ -8,6 +8,7 @@
  -um problema que temos e que como estas em read() mesmo que executes o parque sem receber um unico vehiculo
  o parque nao chega a fechar fica sempre aberto sem veiculos la dentro, uma ideia que tive seria usar
  NON_BLOCK para ler os vehiculos que chegassem mas isso deve ser dispendioso porque vai fazer busy waiting...
+ David - O stores disseram para evitarmos ao maximo os casos de busy waiting :/
 
  -Outra Cena: acho que nao podemos fechar o FIFO como tinha dito quando o tempo passa porque se nao rip
  aos logs do tipo: encerrado.
