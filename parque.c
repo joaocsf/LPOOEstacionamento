@@ -16,6 +16,9 @@
 
 #include "viatura.h"
 
+#define DIRECTORY_LENGTH 4096
+#define FILE_LENGTH 255
+
 int n_total_lugares;
 int lugares_ocupados = 0;
 int t_abertura;
@@ -24,6 +27,7 @@ int fileLog = 0;
 int tempoInicial;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+void * arrumador_thread(void * args);
 
 void * controlador_thread(void * args){
 
@@ -35,12 +39,12 @@ void * controlador_thread(void * args){
     return NULL;
   }
 
-  if(fd = open((char *)args,O_RDONLY)) != -1){//Opening FIFO with read only
+  if((fd = open((char *)args,O_RDONLY)) != -1){//Opening FIFO with read only
     perror((char *)args);
     return NULL;
   }
 
-  if(fd_dummy = open((char *)args,O_WRONLY)) != -1){//Opening FIFO with write only
+  if((fd_dummy = open((char *)args,O_WRONLY)) != -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
     unlink((char *)args);
@@ -51,8 +55,8 @@ void * controlador_thread(void * args){
 
   while(!encerrou){
     //Ler viaturas
-    if(pthread_create(&tid, NULL , arrumador_thread , v)){
-      perror(tid);
+    if(pthread_create(&tid, NULL , arrumador_thread , NULL)){
+      printf("Error Creating Thread!\n");
       close(fd);
       close(fd_dummy);
       unlink((char *)args);
@@ -106,14 +110,14 @@ void * arrumador_thread(void * args){
 
   if(resposta != RES_ENTRADA){
     //Terminar a thread;
-    pthread_exit();
+    return NULL;
   }
   //turn on local temporizador;
   //Saida
   pthread_mutex_lock(&mutex);//Seccção Critica
   lugares_ocupados--;
   pthread_mutex_unlock(&mutex);
-  pthread_exit();
+  return NULL;
 }
 
 int main(int argc, char *argv[]){
@@ -128,7 +132,7 @@ int main(int argc, char *argv[]){
   sprintf(path, "%s/%s", path, "parque.log");
 
   if( (fileLog = open(path, O_CREAT | O_WRONLY | O_TRUNC , S_IRWXU)) == -1){
-    perror(path);
+    printf("Error Creating Thread!\n");
     exit(2);
   }
 
@@ -160,6 +164,6 @@ int main(int argc, char *argv[]){
   pthread_join(tE,NULL);
   pthread_join(tO,NULL);
 
-  close(fichLog);
+  close(fileLog);
   return 0;
 }
