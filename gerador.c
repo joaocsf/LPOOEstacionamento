@@ -22,7 +22,7 @@
 int viatura_ID = 1;
 
 int fileLog = 0;
-int tempoInicial;
+clock_t clockInicial;
 /**
 *
 *
@@ -75,7 +75,7 @@ void * viatura_thread(void * arg){
 
   if(info == RES_ENTRADA){
 
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; entrada\n" , (int)(tempoInicial - clock()) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
+    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; entrada\n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
 
     write(fileLog, fifoName , strlen(fifoName) );
 
@@ -86,19 +86,19 @@ void * viatura_thread(void * arg){
     }
 
   }else if(info == RES_CHEIO){
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; cheio!\n" , (int)(tempoInicial - clock()) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
+    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; cheio!\n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
 
     write(fileLog, fifoName , strlen(fifoName) );
 
   }else if(info == RES_ENCERRADO){
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; \n" , (int)(tempoInicial - clock()) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
+    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; \n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
 
     write(fileLog, fifoName , strlen(fifoName) );
 
   }
 
   if(info == RES_SAIDA){
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; %d ; saida\n" , (int)(tempoInicial - clock()) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(tInicial-clock() ));
+    sprintf(fifoName, "%d ; %d ; %c ; %d ; %d ; saida\n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(clock() - tInicial));
 
     write(fileLog, fifoName , strlen(fifoName) );
 
@@ -130,9 +130,12 @@ int main(int argn, char *argv[]){
   unsigned int u_relogio = 10;
   //clock_t c_inicio = clock();
 
-  //int t_geracao = atoi(argv[1]);
+  int t_geracao = atoi(argv[1]);
 
-  tempoInicial = clock();
+  clockInicial = clock();
+
+  time_t segundosIniciais = time(NULL);
+  time_t totalTime = 0;
 
   u_relogio = atoi(argv[2]);
 
@@ -171,14 +174,26 @@ int main(int argn, char *argv[]){
 
     v->tempoEstacionamento = (rand()%10 + 1 )* u_relogio;
     pthread_t tid;
+    printf("Viatura Criada: %10d ; %10c ; %10d\n", v->numeroID , v->portaEntrada , (int)v->tempoEstacionamento);
+    /*
     if(pthread_create(&tid, NULL , viatura_thread , v)){
       printf("Error Creating Thread!\n");
       exit(2);
-    }
-    pthread_detach(tid);
+    }*/
 
-  }while(0);
-  close(fichLog);
+    pthread_detach(tid);
+    clock_t wastingTime = local * u_relogio;
+    clock_t init = clock();
+    while( 0 <  wastingTime ){
+      wastingTime -= clock() - init;
+      init = clock();
+    }
+
+    totalTime = (time(NULL) - segundosIniciais);
+    printf("%d\n",totalTime);
+  }while( totalTime < t_geracao);
+
+  close(fileLog);
 
   return 0;
 }
