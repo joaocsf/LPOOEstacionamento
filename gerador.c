@@ -27,6 +27,18 @@ clock_t clockInicial;
 *
 *
 */
+void debug(unsigned int tempo, int numViatura, char entrada, unsigned int tempoEstacionamento, unsigned int tempoVida, char* tag){
+  char text[DIRECTORY_LENGTH + FILE_LENGTH];
+
+  if(tempoVida != -1)
+  sprintf(text, "%10d ; %7d ;   %c    ; %10d ; %6d ; %s\n" , tempo , numViatura , entrada, tempoEstacionamento,tempoVida, tag);
+  else
+  sprintf(text, "%10d ; %7d ;   %c    ; %10d ;    ?   ; %s\n" , tempo , numViatura , entrada, tempoEstacionamento, tag);
+
+  write(fileLog, text , strlen(text) );
+
+}
+
 void * viatura_thread(void * arg){
 
   clock_t tInicial = clock();
@@ -34,24 +46,30 @@ void * viatura_thread(void * arg){
   Viatura* viatura = (Viatura*)arg;
 
   char fifoName[DIRECTORY_LENGTH + FILE_LENGTH] ;
+  char fifoViatura[DIRECTORY_LENGTH + FILE_LENGTH] ;
 
-  sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
+  sprintf(fifoViatura, "/tmp/viatura%d", viatura->numeroID);
 
-  if( mkfifo(fifoName, S_IRWXU) != 0){
-    perror(fifoName);
+  if( mkfifo(fifoViatura, S_IRWXU) != 0){
+    perror(fifoViatura);
     exit(5);
   }
 
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
 
   int fifoDestino = 0;
-  if( (fifoDestino = open(fifoName, O_WRONLY)) == -1){
+  if( (fifoDestino = open(fifoName, O_WRONLY | O_NONBLOCK)) == -1){
+
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
+    closeFifo(fifoViatura);
     perror(fifoName);
-    exit (4);
+    return NULL;
   }
 
   if( write( fifoDestino, viatura, sizeof(Viatura) ) == -1 ){
     printf("Error Writing to FIFO Dest\n");
+
+    closeFifo(fifoViatura);
     exit(6);
   }
 
@@ -59,8 +77,10 @@ void * viatura_thread(void * arg){
 
 
   int fifoOrigem = 0;
-  if( (fifoOrigem = open(fifoName, O_RDONLY)) == -1 ){
+  if( (fifoOrigem = open(fifoName, O_RDONLY | O_CREAT)) == -1 ){
     perror(fifoName);
+
+    closeFifo(fifoViatura);
     exit(7);
   }
 
@@ -69,44 +89,46 @@ void * viatura_thread(void * arg){
   while ( (res = read(fifoOrigem, &info, sizeof(char) )) == 0);
   if(res == -1){
     printf("Error Reading fifo!");
+
+    closeFifo(fifoViatura);
     exit(8);
   }
 
 
   if(info == RES_ENTRADA){
 
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; entrada\n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
 
-    write(fileLog, fifoName , strlen(fifoName) );
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "entrada");
 
     while ( (res = read(fifoOrigem, &info, sizeof(char) )) == 0);
     if(res == -1){
       printf("Error Reading fifo!");
-      exit(8);
+
+      closeFifo(fifoViatura);
+      exit(9);
     }
 
   }else if(info == RES_CHEIO){
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; cheio!\n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
 
-    write(fileLog, fifoName , strlen(fifoName) );
 
   }else if(info == RES_ENCERRADO){
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; ? ; \n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento);
-
-    write(fileLog, fifoName , strlen(fifoName) );
-
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
   }
 
   if(info == RES_SAIDA){
-    sprintf(fifoName, "%d ; %d ; %c ; %d ; %d ; saida\n" , (int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(clock() - tInicial));
-
-    write(fileLog, fifoName , strlen(fifoName) );
-
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(clock() - tInicial), "saida");
   }
 
-  return viatura ;
+  closeFifo(fifoViatura);
+  return NULL;
 }
 
+
+void closeFifo(char * dir){
+  close(dir);
+  unlink(dir);
+}
 
 int main(int argn, char *argv[]){
 
@@ -123,27 +145,27 @@ int main(int argn, char *argv[]){
     exit(3);
   }
 
-  write(fileLog, "t(ticks) ; id_viat ; destin ; t_estacion ; t_vida ; observ\n" ,60);
+  write(fileLog, " t(ticks)  ; id_viat ; destin ; t_estacion ; t_vida ; observ\n" ,62);
 
 
 
   unsigned int u_relogio = 10;
-  //clock_t c_inicio = clock();
 
   int t_geracao = atoi(argv[1]);
+  u_relogio = atoi(argv[2]);
 
   clockInicial = clock();
 
   time_t segundosIniciais = time(NULL);
   time_t totalTime = 0;
 
-  u_relogio = atoi(argv[2]);
 
-  int local = rand()%4;
 
   do{
 
     Viatura* v = (Viatura*)malloc(sizeof(Viatura));
+
+    int local = rand()%4;
 
     switch (local) {
       case 0:
@@ -174,12 +196,12 @@ int main(int argn, char *argv[]){
 
     v->tempoEstacionamento = (rand()%10 + 1 )* u_relogio;
     pthread_t tid;
-    printf("Viatura Criada: %10d ; %10c ; %10d\n", v->numeroID , v->portaEntrada , (int)v->tempoEstacionamento);
-    /*
+    printf("Viatura Criada: %10d ;   %c   ; %10d\n", v->numeroID , v->portaEntrada , (int)v->tempoEstacionamento);
+
     if(pthread_create(&tid, NULL , viatura_thread , v)){
       printf("Error Creating Thread!\n");
       exit(2);
-    }*/
+    }
 
     pthread_detach(tid);
     clock_t wastingTime = local * u_relogio;
