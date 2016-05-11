@@ -178,7 +178,7 @@ int main(int argn, char *argv[]){
     pthread_detach(tid);
 
   }while(0);
-
+  close(fichLog);
 
   return 0;
 }
