@@ -3,6 +3,20 @@
   *
   */
 
+/*
+ COMENTARIO DO JOAO:
+ -um problema que temos e que como estas em read() mesmo que executes o parque sem receber um unico vehiculo
+ o parque nao chega a fechar fica sempre aberto sem veiculos la dentro, uma ideia que tive seria usar
+ NON_BLOCK para ler os vehiculos que chegassem mas isso deve ser dispendioso porque vai fazer busy waiting...
+
+ -Outra Cena: acho que nao podemos fechar o FIFO como tinha dito quando o tempo passa porque se nao rip
+ aos logs do tipo: encerrado.
+
+ -ainda falta fazer testes ao resto mas ate agora parece fazer sentido.
+
+
+*/
+
 #include <unistd.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -24,10 +38,19 @@ int lugares_ocupados = 0;
 int t_abertura;
 char encerrou = 0;
 int fileLog = 0;
-int tempoInicial;
+clock_t tempoInicial;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void * arrumador_thread(void * args);
+Viatura* lerViatura(int fd);
+
+void debugLog(unsigned int tempo , unsigned int numLugares, unsigned int numeroViatura, char* obs){
+  char text[DIRECTORY_LENGTH + FILE_LENGTH];
+
+  sprintf(text, " %10d ; %5d ; %7d ; %s\n" , tempo, numLugares, numeroViatura, obs);
+
+  write(fileLog, text, strlen(text));
+}
 
 void * controlador_thread(void * args){
 
@@ -39,12 +62,12 @@ void * controlador_thread(void * args){
     return NULL;
   }
 
-  if((fd = open((char *)args,O_RDONLY)) != -1){//Opening FIFO with read only
+  if((fd = open((char *)args,O_RDONLY)) == -1){//Opening FIFO with read only
     perror((char *)args);
     return NULL;
   }
 
-  if((fd_dummy = open((char *)args,O_WRONLY)) != -1){//Opening FIFO with write only
+  if((fd_dummy = open((char *)args,O_WRONLY)) == -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
     unlink((char *)args);
@@ -54,19 +77,28 @@ void * controlador_thread(void * args){
 
 
   while(!encerrou){
-    //Ler viaturas
-    if(pthread_create(&tid, NULL , arrumador_thread , NULL)){
-      printf("Error Creating Thread!\n");
-      close(fd);
-      close(fd_dummy);
-      unlink((char *)args);
-      return NULL;
+    Viatura* viaturaTemp;
+    while( (viaturaTemp = lerViatura(fd)) !=NULL){
+
+      //Viatura* viaturaTemp = lerViatura(fd);
+      //Ler viaturas
+      if(pthread_create(&tid, NULL , arrumador_thread , viaturaTemp)){
+        printf("Error Creating Thread!\n");
+        close(fd);
+        close(fd_dummy);
+        unlink((char *)args);
+        return NULL;
+      }
+      pthread_detach(tid);
+
     }
-    pthread_detach(tid);
     //Ler continuamente as viaturas que vao chegando
   }
   //Fechou
   //Ler as restantes viaturas;
+
+  close(fd);
+  close(fd_dummy);
 
   if((nr = unlink((char *)args)) == -1){//Deleting FIFO
     perror((char *)args);
@@ -76,47 +108,77 @@ void * controlador_thread(void * args){
     return NULL;
   }
 
-  close(fd);
-  close(fd_dummy);
   unlink((char *)args);
   return NULL;
 }
 
 Viatura* lerViatura(int fd){
   Viatura* v = (Viatura *)malloc(sizeof(Viatura *));
-  read(fd,v,sizeof(Viatura));
-  return v;
+  if(read(fd,v,sizeof(Viatura)) != -1) //Caso nao consiga ler viaturas
+    return v;
+  else
+    return NULL;
 }
 
 void * arrumador_thread(void * args){
 
-  int resposta = 0;
+  char resposta = 0;
   Viatura * v = (Viatura *)args;
-  //Criar FIFO
+
+//Criar FIFO
+  char fifoViatura[DIRECTORY_LENGTH + FILE_LENGTH] ;
+  sprintf(fifoViatura, "/tmp/viatura%d", v->numeroID);
+  int fdViatura = 0;
+  if( (fdViatura = open(fifoViatura, O_RDONLY) ) == -1){
+    perror(fifoViatura);
+    free(v);
+    return NULL;
+  }
+
   pthread_mutex_lock(&mutex);//Secção Critica
   if(encerrou){
     resposta = RES_ENCERRADO;
+    debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "encerrado");
   } else {
     if(n_total_lugares == lugares_ocupados){
       resposta = RES_CHEIO;
+
+      debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "cheio");
     }else {
       lugares_ocupados++;
       resposta = RES_ENTRADA;
+      debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "estacionamento");
     }
   }
   pthread_mutex_unlock(&mutex);
 
-  //Enviar a resposta para o FIFO
+//Enviar a resposta para o FIFO
+  write(fdViatura, &resposta, sizeof(char));
 
   if(resposta != RES_ENTRADA){
-    //Terminar a thread;
+//Terminar a thread;
+    close(fdViatura);
+    free(v);
     return NULL;
   }
-  //turn on local temporizador;
+//turn on local temporizador;
+  clock_t tickInicial = clock();
+  while(clock() - tickInicial < v->tempoEstacionamento);
+
   //Saida
+  resposta = RES_SAIDA;
+  write(fdViatura, &resposta, sizeof(char) );
+
   pthread_mutex_lock(&mutex);//Seccção Critica
+
+  debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "saida");
   lugares_ocupados--;
+
+
   pthread_mutex_unlock(&mutex);
+
+  close(fdViatura);
+  free(v);
   return NULL;
 }
 
@@ -140,7 +202,8 @@ int main(int argc, char *argv[]){
 
   n_total_lugares = atoi(argv[1]);
   t_abertura = atoi(argv[2]);
-  clock_t tempoInicial = clock();
+
+  tempoInicial = clock();
 
   pthread_t tN, tS, tE, tO;
   if (pthread_create(&tN, NULL, controlador_thread, "/tmp/fifoN")){
@@ -159,6 +222,14 @@ int main(int argc, char *argv[]){
     printf("Error Creating Thread!\n");
     exit(3);
   }
+
+  unsigned int timeToSleep = t_abertura;
+  while( ( timeToSleep = sleep(timeToSleep) ) > 0);
+  pthread_mutex_lock(&mutex);//Secção Critica
+  encerrou = 1;
+  pthread_mutex_unlock(&mutex);
+
+
   pthread_join(tN,NULL);
   pthread_join(tS,NULL);
   pthread_join(tE,NULL);

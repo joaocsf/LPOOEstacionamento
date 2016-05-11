@@ -52,6 +52,7 @@ void * viatura_thread(void * arg){
 
   if( mkfifo(fifoViatura, S_IRWXU) != 0){
     perror(fifoViatura);
+    free(viatura);
     exit(5);
   }
 
@@ -62,13 +63,14 @@ void * viatura_thread(void * arg){
 
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
     closeFifo(fifoViatura);
+    free(viatura);
     perror(fifoName);
     return NULL;
   }
 
   if( write( fifoDestino, viatura, sizeof(Viatura) ) == -1 ){
     printf("Error Writing to FIFO Dest\n");
-
+    free(viatura);
     closeFifo(fifoViatura);
     exit(6);
   }
@@ -79,7 +81,7 @@ void * viatura_thread(void * arg){
   int fifoOrigem = 0;
   if( (fifoOrigem = open(fifoName, O_RDONLY | O_CREAT)) == -1 ){
     perror(fifoName);
-
+    free(viatura);
     closeFifo(fifoViatura);
     exit(7);
   }
@@ -89,7 +91,7 @@ void * viatura_thread(void * arg){
   while ( (res = read(fifoOrigem, &info, sizeof(char) )) == 0);
   if(res == -1){
     printf("Error Reading fifo!");
-
+    free(viatura);
     closeFifo(fifoViatura);
     exit(8);
   }
@@ -103,7 +105,7 @@ void * viatura_thread(void * arg){
     while ( (res = read(fifoOrigem, &info, sizeof(char) )) == 0);
     if(res == -1){
       printf("Error Reading fifo!");
-
+      free(viatura);
       closeFifo(fifoViatura);
       exit(9);
     }
@@ -120,6 +122,7 @@ void * viatura_thread(void * arg){
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(clock() - tInicial), "saida");
   }
 
+  free(viatura);
   closeFifo(fifoViatura);
   return NULL;
 }
