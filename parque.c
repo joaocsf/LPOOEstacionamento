@@ -95,6 +95,8 @@ void * controlador_thread(void * args){
   //Fechou
   //Ler as restantes viaturas;
 
+
+
   close(fd);
   //close(fd_dummy);
 
@@ -261,7 +263,9 @@ int main(int argc, char *argv[]){
   pthread_join(tS,NULL);
   pthread_join(tE,NULL);
   pthread_join(tO,NULL);
+  
 
-  //close(fileLog);
+
+  close(fileLog);
   return 0;
 }

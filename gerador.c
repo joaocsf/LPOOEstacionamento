@@ -123,7 +123,7 @@ void * viatura_thread(void * arg){
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
 
 
-  }else if(info == RES_ENCERRADO){ 
+  }else if(info == RES_ENCERRADO){
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
   }
 
