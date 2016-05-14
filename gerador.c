@@ -27,6 +27,14 @@ clock_t clockInicial;
 *
 *
 */
+
+
+void closeFifo(char * dir, int fd, int fd2){
+  close(fd);
+  close(fd2);
+  unlink(dir);
+}
+
 void debug(unsigned int tempo, int numViatura, char entrada, unsigned int tempoEstacionamento, unsigned int tempoVida, char* tag){
   char text[DIRECTORY_LENGTH + FILE_LENGTH];
 
@@ -62,7 +70,8 @@ void * viatura_thread(void * arg){
   if( (fifoDestino = open(fifoName, O_WRONLY | O_NONBLOCK)) == -1){
 
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
-    closeFifo(fifoViatura);
+    unlink(fifoViatura);
+    close(fifoDestino);
     free(viatura);
     perror(fifoName);
     return NULL;
@@ -71,7 +80,8 @@ void * viatura_thread(void * arg){
   if( write( fifoDestino, viatura, sizeof(Viatura) ) == -1 ){
     printf("Error Writing to FIFO Dest\n");
     free(viatura);
-    closeFifo(fifoViatura);
+    unlink(fifoViatura);
+    close(fifoDestino);
     exit(6);
   }
 
@@ -82,7 +92,7 @@ void * viatura_thread(void * arg){
   if( (fifoOrigem = open(fifoName, O_RDONLY | O_CREAT)) == -1 ){
     perror(fifoName);
     free(viatura);
-    closeFifo(fifoViatura);
+    closeFifo(fifoViatura,fifoDestino,fifoOrigem);
     exit(7);
   }
 
@@ -92,13 +102,13 @@ void * viatura_thread(void * arg){
   if(res == -1){
     printf("Error Reading fifo!");
     free(viatura);
-    closeFifo(fifoViatura);
+    closeFifo(fifoViatura,fifoDestino,fifoOrigem);
     exit(8);
   }
 
 
   if(info == RES_ENTRADA){
-
+    printf("\nEntrada\n");
 
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "entrada");
 
@@ -106,7 +116,7 @@ void * viatura_thread(void * arg){
     if(res == -1){
       printf("Error Reading fifo!");
       free(viatura);
-      closeFifo(fifoViatura);
+      closeFifo(fifoViatura,fifoDestino,fifoOrigem);
       exit(9);
     }
 
@@ -123,15 +133,11 @@ void * viatura_thread(void * arg){
   }
 
   free(viatura);
-  closeFifo(fifoViatura);
+  closeFifo(fifoViatura,fifoDestino,fifoOrigem);
   return NULL;
 }
 
 
-void closeFifo(char * dir){
-  close(dir);
-  unlink(dir);
-}
 
 int main(int argn, char *argv[]){
 
@@ -215,7 +221,7 @@ int main(int argn, char *argv[]){
     }
 
     totalTime = (time(NULL) - segundosIniciais);
-    printf("%d\n",totalTime);
+    printf("%d\n",(int)totalTime);
   }while( totalTime < t_geracao);
 
   close(fileLog);

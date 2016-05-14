@@ -32,7 +32,7 @@
 #include "viatura.h"
 
 #define DIRECTORY_LENGTH 4096
-#define FILE_LENGTH 255
+#define FILE_LENGTH 255 
 
 int n_total_lugares;
 int lugares_ocupados = 0;
@@ -62,49 +62,51 @@ void * controlador_thread(void * args){
     perror((char *)args);
     return NULL;
   }
-
+  printf("A\n");
   if((fd = open((char *)args,O_RDONLY)) == -1){//Opening FIFO with read only
     perror((char *)args);
     return NULL;
   }
-
+  printf("B\n");
   if((fd_dummy = open((char *)args,O_WRONLY)) == -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
     unlink((char *)args);
     return NULL;
   }
+  printf("C\n");
 
-
-
-  while(!encerrou){
-    Viatura* viaturaTemp;
-    while( (viaturaTemp = lerViatura(fd)) !=NULL){
-
+  Viatura* viaturaTemp;
+  while( (viaturaTemp = lerViatura(fd)) !=NULL){
+    if( viaturaTemp->portaEntrada == 'X'){ //Se Terminou
+      printf("D-Closing\n");
+      close(fd_dummy);
+      continue;
+    }
+    printf("Looping\n");
+    printf("Entrou!: %c\n", viaturaTemp->portaEntrada);
       //Viatura* viaturaTemp = lerViatura(fd);
       //Ler viaturas
-      if(pthread_create(&tid, NULL , arrumador_thread , viaturaTemp)){
-        printf("Error Creating Thread!\n");
-        close(fd);
-        close(fd_dummy);
-        unlink((char *)args);
-        return NULL;
-      }
-      pthread_detach(tid);
-
+    continue;
+    if(pthread_create(&tid, NULL , arrumador_thread , viaturaTemp)){
+      printf("Error Creating Thread!\n");
+      close(fd);
+      close(fd_dummy);
+      unlink((char *)args);
+      return NULL;
     }
-    //Ler continuamente as viaturas que vao chegando
+    pthread_detach(tid);
   }
+    //Ler continuamente as viaturas que vao chegando
+    printf("CLOSED\n");
   //Fechou
   //Ler as restantes viaturas;
 
   close(fd);
-  close(fd_dummy);
+  //close(fd_dummy);
 
   if((nr = unlink((char *)args)) == -1){//Deleting FIFO
     perror((char *)args);
-    close(fd);
-    close(fd_dummy);
     unlink((char *)args);
     return NULL;
   }
@@ -115,10 +117,11 @@ void * controlador_thread(void * args){
 
 Viatura* lerViatura(int fd){
   Viatura* v = (Viatura *)malloc(sizeof(Viatura *));
-  if(read(fd,v,sizeof(Viatura)) != -1) //Caso nao consiga ler viaturas
-    return v;
-  else
+  int returnValue = read(fd,v,sizeof(Viatura));
+  if( returnValue == -1 || returnValue == 0) //Caso nao consiga ler viaturas
     return NULL;
+  else
+    return v;
 }
 
 void * arrumador_thread(void * args){
@@ -229,7 +232,35 @@ int main(int argc, char *argv[]){
   pthread_mutex_lock(&mutex);//Secção Critica
   encerrou = 1;
   pthread_mutex_unlock(&mutex);
+  int i;
+  for( i = 0; i < 4; i++){
+    char* msg = "/tmp/fifoO";
 
+    switch (i) {
+      case 0:
+      msg = "/tmp/fifoN";
+      break;
+      case 1:
+      msg = "/tmp/fifoS";
+      break;
+      case 2:
+      msg = "/tmp/fifoE";
+      break;
+    }
+
+    int fd;
+    if((fd = open(msg,O_WRONLY)) == -1){//Opening FIFO with write only
+      perror(msg);
+      close(fd);
+      unlink(msg);
+      continue;
+    }
+
+    Viatura temp;
+    temp.portaEntrada = 'X';
+    write(fd,&temp, sizeof(Viatura));
+    close(fd);
+  }
 
   pthread_join(tN,NULL);
   pthread_join(tS,NULL);
