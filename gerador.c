@@ -66,18 +66,18 @@ void * viatura_thread(void * arg){
 
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
 
-  int fifoDestino = 0;
-  if( (fifoDestino = open(fifoName, O_WRONLY | O_NONBLOCK)) == -1){
 
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
+  int fifoDestino = 0;
+  if( (fifoDestino = open(fifoName, O_WRONLY)) == -1){ //Abrir FifoControlador
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
     unlink(fifoViatura);
     close(fifoDestino);
     free(viatura);
-    perror(fifoName);
+    //perror(fifoName);
     return NULL;
   }
 
-  if( write( fifoDestino, viatura, sizeof(Viatura) ) == -1 ){
+  if( write( fifoDestino, viatura, sizeof(Viatura) ) == -1 ){ //Escrever para o Fifo Controlador
     printf("Error Writing to FIFO Dest\n");
     free(viatura);
     unlink(fifoViatura);
@@ -87,14 +87,14 @@ void * viatura_thread(void * arg){
 
   sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
 
-
   int fifoOrigem = 0;
-  if( (fifoOrigem = open(fifoName, O_RDONLY | O_CREAT)) == -1 ){
+  if( (fifoOrigem = open(fifoName, O_RDONLY)) == -1 ){ //Abrir Fifo leitura
     perror(fifoName);
     free(viatura);
     closeFifo(fifoViatura,fifoDestino,fifoOrigem);
     exit(7);
   }
+
 
   char info;
   int res = 0;
@@ -108,7 +108,6 @@ void * viatura_thread(void * arg){
 
 
   if(info == RES_ENTRADA){
-    printf("\nEntrada\n");
 
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "entrada");
 
@@ -124,7 +123,7 @@ void * viatura_thread(void * arg){
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
 
 
-  }else if(info == RES_ENCERRADO){
+  }else if(info == RES_ENCERRADO){ 
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
   }
 
@@ -211,8 +210,8 @@ int main(int argn, char *argv[]){
       printf("Error Creating Thread!\n");
       exit(2);
     }
-
     pthread_detach(tid);
+
     clock_t wastingTime = local * u_relogio;
     clock_t init = clock();
     while( 0 <  wastingTime ){
@@ -224,7 +223,7 @@ int main(int argn, char *argv[]){
     printf("%d\n",(int)totalTime);
   }while( totalTime < t_geracao);
 
-  close(fileLog);
+  //close(fileLog);
 
   return 0;
 }

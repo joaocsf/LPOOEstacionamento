@@ -32,7 +32,7 @@
 #include "viatura.h"
 
 #define DIRECTORY_LENGTH 4096
-#define FILE_LENGTH 255 
+#define FILE_LENGTH 255
 
 int n_total_lugares;
 int lugares_ocupados = 0;
@@ -62,32 +62,26 @@ void * controlador_thread(void * args){
     perror((char *)args);
     return NULL;
   }
-  printf("A\n");
+
   if((fd = open((char *)args,O_RDONLY)) == -1){//Opening FIFO with read only
     perror((char *)args);
     return NULL;
   }
-  printf("B\n");
+
   if((fd_dummy = open((char *)args,O_WRONLY)) == -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
     unlink((char *)args);
     return NULL;
   }
-  printf("C\n");
 
   Viatura* viaturaTemp;
   while( (viaturaTemp = lerViatura(fd)) !=NULL){
     if( viaturaTemp->portaEntrada == 'X'){ //Se Terminou
-      printf("D-Closing\n");
       close(fd_dummy);
       continue;
     }
-    printf("Looping\n");
-    printf("Entrou!: %c\n", viaturaTemp->portaEntrada);
-      //Viatura* viaturaTemp = lerViatura(fd);
-      //Ler viaturas
-    continue;
+
     if(pthread_create(&tid, NULL , arrumador_thread , viaturaTemp)){
       printf("Error Creating Thread!\n");
       close(fd);
@@ -98,7 +92,6 @@ void * controlador_thread(void * args){
     pthread_detach(tid);
   }
     //Ler continuamente as viaturas que vao chegando
-    printf("CLOSED\n");
   //Fechou
   //Ler as restantes viaturas;
 
@@ -133,7 +126,9 @@ void * arrumador_thread(void * args){
   char fifoViatura[DIRECTORY_LENGTH + FILE_LENGTH] ;
   sprintf(fifoViatura, "/tmp/viatura%d", v->numeroID);
   int fdViatura = 0;
-  if( (fdViatura = open(fifoViatura, O_RDONLY) ) == -1){
+
+
+  if( (fdViatura = open(fifoViatura, O_WRONLY) ) == -1){
     perror(fifoViatura);
     free(v);
     return NULL;
@@ -267,6 +262,6 @@ int main(int argc, char *argv[]){
   pthread_join(tE,NULL);
   pthread_join(tO,NULL);
 
-  close(fileLog);
+  //close(fileLog);
   return 0;
 }
