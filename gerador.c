@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <semaphore.h>
 
 #include "viatura.h"
 
@@ -20,6 +21,7 @@
 #define FILE_LENGTH 255
 
 int viatura_ID = 1;
+sem_t * sem;
 
 int fileLog = 0;
 clock_t clockInicial;
@@ -29,8 +31,7 @@ clock_t clockInicial;
 */
 
 
-void closeFifo(char * dir, int fd, int fd2){
-  close(fd);
+void closeFifo(char * dir, int fd2){
   close(fd2);
   unlink(dir);
 }
@@ -66,7 +67,7 @@ void * viatura_thread(void * arg){
 
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
 
-
+  sem_wait(sem);
   int fifoDestino = 0;
   if( (fifoDestino = open(fifoName, O_WRONLY)) == -1){ //Abrir FifoControlador
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
@@ -85,13 +86,17 @@ void * viatura_thread(void * arg){
     exit(6);
   }
 
+  close(fifoDestino);
+
+  sem_post(sem);
+
   sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
 
   int fifoOrigem = 0;
   if( (fifoOrigem = open(fifoName, O_RDONLY)) == -1 ){ //Abrir Fifo leitura
     perror(fifoName);
     free(viatura);
-    closeFifo(fifoViatura,fifoDestino,fifoOrigem);
+    closeFifo(fifoViatura,fifoOrigem);
     exit(7);
   }
 
@@ -102,7 +107,7 @@ void * viatura_thread(void * arg){
   if(res == -1){
     printf("Error Reading fifo!");
     free(viatura);
-    closeFifo(fifoViatura,fifoDestino,fifoOrigem);
+    closeFifo(fifoViatura,fifoOrigem);
     exit(8);
   }
 
@@ -115,7 +120,7 @@ void * viatura_thread(void * arg){
     if(res == -1){
       printf("Error Reading fifo!");
       free(viatura);
-      closeFifo(fifoViatura,fifoDestino,fifoOrigem);
+      closeFifo(fifoViatura,fifoOrigem);
       exit(9);
     }
 
@@ -132,7 +137,7 @@ void * viatura_thread(void * arg){
   }
 
   free(viatura);
-  closeFifo(fifoViatura,fifoDestino,fifoOrigem);
+  closeFifo(fifoViatura,fifoOrigem);
   return NULL;
 }
 
@@ -156,6 +161,10 @@ int main(int argn, char *argv[]){
   write(fileLog, " t(ticks)  ; id_viat ; destin ; t_estacion ; t_vida ; observ\n" ,62);
 
 
+  if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){//Criacao do semaforo
+    perror("/semaforo");
+    exit(3);
+  }
 
   unsigned int u_relogio = 10;
 
@@ -192,13 +201,13 @@ int main(int argn, char *argv[]){
     v->numeroID = viatura_ID++;
     v->fifoID = v->numeroID;
 
-    local = rand() % 100;
+    local = rand() % 10;
 
-    if(local < 50){
+    if(local < 5){
       local = 0;
-    }else if(local < 80){
+    } else if(local < 8){
       local = 1;
-    }else if(local < 100){
+    } else {
       local = 2;
     }
 
@@ -223,7 +232,5 @@ int main(int argn, char *argv[]){
     printf("%d\n",(int)totalTime);
   }while( totalTime < t_geracao);
 
-  //close(fileLog);
-
-  return 0;
+  pthread_exit(NULL);
 }
