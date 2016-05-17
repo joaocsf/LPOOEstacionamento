@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <semaphore.h>
+#include <signal.h>
 
 #include "viatura.h"
 
@@ -28,6 +29,11 @@ int fileLog = 0;
 clock_t tempoInicial;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 sem_t * sem;
+
+void sigPipe(int id){
+  printf("SIG PIPEE!!!!\n");
+
+}
 
 void * arrumador_thread(void * args);
 Viatura* lerViatura(int fd);
@@ -45,19 +51,19 @@ void * controlador_thread(void * args){
 
   int nr,fd, fd_dummy;
   pthread_t tid;
-  printf("CriarFifo");
+  printf("CriarFifo\n");
 
   if((nr = mkfifo((char *)args, 0644)) == -1){//Creating FIFO
     perror((char *)args);
     return NULL;
   }
 
-  printf("Abertura");
+  printf("Abertura\n");
   if((fd = open((char *)args,O_RDONLY)) == -1){//Opening FIFO with read only
     perror((char *)args);
     return NULL;
   }
-printf("Espera");
+printf("Espera\n");
   if((fd_dummy = open((char *)args,O_WRONLY | O_NONBLOCK)) == -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
@@ -67,10 +73,10 @@ printf("Espera");
 
   Viatura* viaturaTemp;
   while( (viaturaTemp = lerViatura(fd)) !=NULL){
-    printf("Nova Viatura");
+    printf("Nova Viatura\n");
     if( viaturaTemp->portaEntrada == 'X'){ //Se Terminou
       close(fd_dummy);
-      printf("Terminar!");
+      printf("Terminar!\n");
       sem_wait(sem);
       continue;
     }
@@ -94,7 +100,7 @@ printf("Espera");
     return NULL;
   }
 
-  printf("Libertar!");
+  printf("Libertar!\n");
   sem_post(sem);
   return NULL;
 }
@@ -152,31 +158,28 @@ void * arrumador_thread(void * args){
     return NULL;
   }
 //turn on local temporizador;
-  printf("A esperar");
 
   clock_t tickInicial = clock();
   while(clock() - tickInicial < v->tempoEstacionamento);
-  printf("Sem Esperar");
 
   //Saida
   resposta = RES_SAIDA;
   write(fdViatura, &resposta, sizeof(char) );
+  close(fdViatura);
 
   pthread_mutex_lock(&mutex);//Seccção Critica
 
   debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "saida");
   lugares_ocupados--;
 
-
   pthread_mutex_unlock(&mutex);
 
-  close(fdViatura);
   free(v);
   return NULL;
 }
 
 int main(int argc, char *argv[]){
-
+  signal(SIGPIPE, sigPipe);
   if(argc != 3){//Verificação dos argumentos
     printf("Error <Usage>: %s <N_LUGARES> <T_ABERTURA>\n",argv[0]);
     exit(1);
@@ -194,8 +197,19 @@ int main(int argc, char *argv[]){
   write(fileLog, "t(ticks) ; n_lug ; id_viat ; observ\n" ,37);
 
 
+  printf("Creating Semaphore\n");
+  if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) != SEM_FAILED){
+    printf("Semaforo Existe!\n");
+    sem_unlink("/semaforo");
+    sem_destroy(sem);
+  }
+
+  printf("Done\n");
+
+
   if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){//Criacao do semaforo
     perror("/semaforo");
+    printf("Error!\n");
     exit(3);
   }
 
@@ -205,6 +219,7 @@ int main(int argc, char *argv[]){
   tempoInicial = clock();
 
 /*Criacao das 4 threads controladores relativas as portas do parque*/
+  printf("Writing threads\n");
   pthread_t tN, tS, tE, tO;
   if (pthread_create(&tN, NULL, controlador_thread, "/tmp/fifoN")){//Norte
     printf("Error Creating Thread!\n");

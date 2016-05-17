@@ -23,6 +23,7 @@
 int viatura_ID = 1;
 sem_t * sem;
 
+
 int fileLog = 0;
 clock_t clockInicial;
 /**
@@ -30,6 +31,9 @@ clock_t clockInicial;
 *
 */
 
+void sigPipe(int id){
+  printf("SIGPIPE!");
+}
 
 void closeFifo(char * dir, int fd2){
   close(fd2);
@@ -65,14 +69,29 @@ void * viatura_thread(void * arg){
     exit(5);
   }
 
+
+
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
 
+  if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) == SEM_FAILED){
+    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+    unlink(fifoViatura);
+    free(viatura);
+    return NULL;
+  }
+
+  printf("A espera de Entrar\n");
+
+
   sem_wait(sem);
+  printf("Dentro da seccao critica\n");
+
   int fifoDestino = 0;
   if( (fifoDestino = open(fifoName, O_WRONLY)) == -1){ //Abrir FifoControlador
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
     unlink(fifoViatura);
     close(fifoDestino);
+    sem_post(sem);
     free(viatura);
     //perror(fifoName);
     return NULL;
@@ -83,12 +102,13 @@ void * viatura_thread(void * arg){
     free(viatura);
     unlink(fifoViatura);
     close(fifoDestino);
+    sem_post(sem);
     exit(6);
   }
-
   close(fifoDestino);
-
   sem_post(sem);
+
+  printf("Entrou!\n");
 
   sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
 
@@ -101,10 +121,11 @@ void * viatura_thread(void * arg){
   }
 
 
+  printf("Esperando para leitura!\n");
+
   char info;
   int res = 0;
-  while ( (res = read(fifoOrigem, &info, sizeof(char) )) == 0);
-  if(res == -1){
+  if((res = read(fifoOrigem, &info, sizeof(char) )) == -1){
     printf("Error Reading fifo!");
     free(viatura);
     closeFifo(fifoViatura,fifoOrigem);
@@ -113,11 +134,11 @@ void * viatura_thread(void * arg){
 
 
   if(info == RES_ENTRADA){
+    printf("Entrou!\n");
 
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "entrada");
 
-    while ( (res = read(fifoOrigem, &info, sizeof(char) )) == 0);
-    if(res == -1){
+    if( (res = read(fifoOrigem, &info, sizeof(char) )) == -1){
       printf("Error Reading fifo!");
       free(viatura);
       closeFifo(fifoViatura,fifoOrigem);
@@ -125,14 +146,20 @@ void * viatura_thread(void * arg){
     }
 
   }else if(info == RES_CHEIO){
+    printf("Estava Cheio!\n");
+
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
 
 
   }else if(info == RES_ENCERRADO){
+    printf("Estava Encerrado!\n");
+
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
   }
 
   if(info == RES_SAIDA){
+    printf("Acabei de SAIR!!\n");
+
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(clock() - tInicial), "saida");
   }
 
@@ -159,12 +186,6 @@ int main(int argn, char *argv[]){
   }
 
   write(fileLog, " t(ticks)  ; id_viat ; destin ; t_estacion ; t_vida ; observ\n" ,62);
-
-
-  if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){//Criacao do semaforo
-    perror("/semaforo");
-    exit(3);
-  }
 
   unsigned int u_relogio = 10;
 
