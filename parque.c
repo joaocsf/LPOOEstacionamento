@@ -4,17 +4,11 @@
   */
 
 /*
- COMENTARIO DO JOAO:
- -um problema que temos e que como estas em read() mesmo que executes o parque sem receber um unico vehiculo
- o parque nao chega a fechar fica sempre aberto sem veiculos la dentro, uma ideia que tive seria usar
- NON_BLOCK para ler os vehiculos que chegassem mas isso deve ser dispendioso porque vai fazer busy waiting...
- David - O stores disseram para evitarmos ao maximo os casos de busy waiting :/
-
- -Outra Cena: acho que nao podemos fechar o FIFO como tinha dito quando o tempo passa porque se nao rip
- aos logs do tipo: encerrado.
-
- -ainda falta fazer testes ao resto mas ate agora parece fazer sentido.
-
+ERROS:
+- Ultimo fifo de viatura nao esta a ser apagado
+- Fifos dos controladores nao estao a ser apagados
+- Nos ficheiros log nao aparecem viaturas quando o parque esta cheio(?)
+-
 
 */
 
@@ -98,7 +92,9 @@ void * controlador_thread(void * args){
 
 
   close(fd);
-  //close(fd_dummy);
+  if(is_open(fd_dummy)){
+    close(fd_dummy);
+  }
 
   if((nr = unlink((char *)args)) == -1){//Deleting FIFO
     perror((char *)args);
@@ -106,7 +102,7 @@ void * controlador_thread(void * args){
     return NULL;
   }
 
-  unlink((char *)args);
+  //unlink((char *)args);
   return NULL;
 }
 
@@ -263,7 +259,7 @@ int main(int argc, char *argv[]){
   pthread_join(tS,NULL);
   pthread_join(tE,NULL);
   pthread_join(tO,NULL);
-  
+
 
 
   close(fileLog);
