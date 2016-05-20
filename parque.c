@@ -197,14 +197,34 @@ void * arrumador_thread(void * args){
   return NULL;
 }
 
+void exit_handlerDestroySem(){
+  /*Tentativa de abertura de um semaforo do menos nome para verificar se ja existe um com esse nome*/
+  if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) != SEM_FAILED){
+    printf("Semaforo Existe!\n");
+    sem_unlink("/semaforo");
+    sem_destroy(sem);
+  }
+
+}
+
 int main(int argc, char *argv[]){
 
   signal(SIGPIPE, sigPipe);
-
   if(argc != 3){//Verificação dos argumentos
     printf("Error <Usage>: %s <N_LUGARES> <T_ABERTURA>\n",argv[0]);
     exit(1);
   }
+  /*Passagem dos argumentos para variaveis globais*/
+
+  n_total_lugares = atoi(argv[1]);
+  t_abertura = atoi(argv[2]);
+  tempoInicial = clock();
+
+  if(t_abertura == 0){
+    printf("Error <T_ABERTURA> must be > 0\n");
+    exit(1);
+  }
+  atexit(exit_handlerDestroySem);
 
   char path[DIRECTORY_LENGTH + FILE_LENGTH];
   realpath(".", path);
@@ -217,24 +237,12 @@ int main(int argc, char *argv[]){
 
   write(fileLog, "t(ticks) ; n_lug ; id_viat ; observ\n" ,37);
 
-/*Tentiva de abertura de um semaforo do menos nome para verificar se ja existe um com esse nome*/
-  if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) != SEM_FAILED){
-    printf("Semaforo Existe!\n");
-    sem_unlink("/semaforo");
-    sem_destroy(sem);
-  }
-
   /*Abertura e criacao de um semaforo para sincronizacao de ambos os programas*/
   if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
     perror("/semaforo");
     printf("Error!\n");
     exit(3);
   }
-
-/*Passagem dos argumentos para variaveis globais*/
-  n_total_lugares = atoi(argv[1]);
-  t_abertura = atoi(argv[2]);
-  tempoInicial = clock();
 
 /*Criacao das 4 threads controladores relativas as portas do parque*/
   printf("Writing threads\n");

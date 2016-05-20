@@ -22,7 +22,7 @@
 #define MILLION 1000000
 
 int viatura_ID = 1;
-sem_t * sem;
+sem_t * sem = SEM_FAILED;
 
 
 int fileLog = 0;
@@ -32,11 +32,11 @@ clock_t clockInicial;
 *
 */
 void mySleep(int ticks){//Recebe os ticks para dormir
-  double myS = ticks / sysconf(_SC_CLK_TCK);
+  double myS = (double)ticks / sysconf(_SC_CLK_TCK);
   struct timespec * req, * rem;
   req = malloc(sizeof(struct timespec));
   rem = malloc(sizeof(struct timespec));
-  req->tv_sec = myS / 1;
+  req->tv_sec = myS;
   req->tv_nsec = (long)(myS - req->tv_sec) * MILLION;
   if(nanosleep(req,rem) != 0){
     nanosleep(rem,NULL);
@@ -87,13 +87,13 @@ void * viatura_thread(void * arg){
 
 
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
-
-  if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) == SEM_FAILED){
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
-    unlink(fifoViatura);
-    free(viatura);
-    return NULL;
-  }
+  if(sem == SEM_FAILED)
+    if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) == SEM_FAILED){
+      debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+      unlink(fifoViatura);
+      free(viatura);
+      return NULL;
+    }
 
   printf("A espera de Entrar\n");
 
@@ -102,8 +102,10 @@ void * viatura_thread(void * arg){
   printf("Dentro da seccao critica\n");
 
   int fifoDestino = 0;
-  if( (fifoDestino = open(fifoName, O_WRONLY)) == -1){ //Abrir FifoControlador
+  if( (fifoDestino = open(fifoName, O_WRONLY | O_NONBLOCK)) == -1){ //Abrir FifoControlador
     debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+    printf("SeccaoCritica, nao consigo abrir!\n");
+
     unlink(fifoViatura);
     close(fifoDestino);
     sem_post(sem);
@@ -186,7 +188,7 @@ void * viatura_thread(void * arg){
 
 
 int main(int argn, char *argv[]){
-
+  printf("%lu\n", sysconf(_SC_CLK_TCK));
   if(argn != 3){
     printf("Error <Usage>: %s <T_GERACAO> <U_RELOGIO>\n",  argv[0]);
     return 1;
@@ -211,8 +213,6 @@ int main(int argn, char *argv[]){
 
   time_t segundosIniciais = time(NULL);
   time_t totalTime = 0;
-
-
 
   do{
 
