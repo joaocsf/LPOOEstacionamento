@@ -20,6 +20,7 @@
 
 #define DIRECTORY_LENGTH 4096
 #define FILE_LENGTH 255
+#define MILLION 1000000
 
 int n_total_lugares;
 int lugares_ocupados = 0;
@@ -108,10 +109,27 @@ printf("Espera\n");
 Viatura* lerViatura(int fd){
   Viatura* v = (Viatura *)malloc(sizeof(Viatura *));
   int returnValue = read(fd,v,sizeof(Viatura));
-  if( returnValue == -1 || returnValue == 0) //Caso nao consiga ler viaturas
+  if( returnValue == -1 || returnValue == 0){ //Caso nao consiga ler viaturas
+    free(v);
     return NULL;
-  else
+  } else {
     return v;
+  }
+}
+
+void mySleep(int ticks){//Recebe os ticks para dormir
+  double myS = ticks / sysconf(_SC_CLK_TCK);
+  struct timespec * req, * rem;
+  req = malloc(sizeof(struct timespec));
+  rem = malloc(sizeof(struct timespec));
+  req->tv_sec = myS / 1;
+  req->tv_nsec = (long)(myS - req->tv_sec) * MILLION;
+  if(nanosleep(req,rem) != 0){
+    nanosleep(rem,NULL);
+  }
+  free(req);
+  free(rem);
+  return;
 }
 
 void * arrumador_thread(void * args){
@@ -159,8 +177,9 @@ void * arrumador_thread(void * args){
   }
 //turn on local temporizador;
 
-  clock_t tickInicial = clock();
-  while(clock() - tickInicial < v->tempoEstacionamento);
+  //clock_t tickInicial = clock();
+  //while(clock() - tickInicial < v->tempoEstacionamento);
+  mySleep(v->tempoEstacionamento);
 
   //Saida
   resposta = RES_SAIDA;
@@ -179,7 +198,9 @@ void * arrumador_thread(void * args){
 }
 
 int main(int argc, char *argv[]){
+
   signal(SIGPIPE, sigPipe);
+
   if(argc != 3){//Verificação dos argumentos
     printf("Error <Usage>: %s <N_LUGARES> <T_ABERTURA>\n",argv[0]);
     exit(1);
@@ -196,18 +217,15 @@ int main(int argc, char *argv[]){
 
   write(fileLog, "t(ticks) ; n_lug ; id_viat ; observ\n" ,37);
 
-
-  printf("Creating Semaphore\n");
+/*Tentiva de abertura de um semaforo do menos nome para verificar se ja existe um com esse nome*/
   if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) != SEM_FAILED){
     printf("Semaforo Existe!\n");
     sem_unlink("/semaforo");
     sem_destroy(sem);
   }
 
-  printf("Done\n");
-
-
-  if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){//Criacao do semaforo
+  /*Abertura e criacao de um semaforo para sincronizacao de ambos os programas*/
+  if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
     perror("/semaforo");
     printf("Error!\n");
     exit(3);

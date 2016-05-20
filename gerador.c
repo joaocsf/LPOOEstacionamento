@@ -19,6 +19,7 @@
 
 #define DIRECTORY_LENGTH 4096
 #define FILE_LENGTH 255
+#define MILLION 1000000
 
 int viatura_ID = 1;
 sem_t * sem;
@@ -30,6 +31,20 @@ clock_t clockInicial;
 *
 *
 */
+void mySleep(int ticks){//Recebe os ticks para dormir
+  double myS = ticks / sysconf(_SC_CLK_TCK);
+  struct timespec * req, * rem;
+  req = malloc(sizeof(struct timespec));
+  rem = malloc(sizeof(struct timespec));
+  req->tv_sec = myS / 1;
+  req->tv_nsec = (long)(myS - req->tv_sec) * MILLION;
+  if(nanosleep(req,rem) != 0){
+    nanosleep(rem,NULL);
+  }
+  free(req);
+  free(rem);
+  return;
+}
 
 void sigPipe(int id){
   printf("SIGPIPE!");
@@ -243,12 +258,14 @@ int main(int argn, char *argv[]){
     pthread_detach(tid);
 
     clock_t wastingTime = local * u_relogio;
+    mySleep(wastingTime);
+    /*CODIGO ANTIGO
     clock_t init = clock();
     while( 0 <  wastingTime ){
       wastingTime -= clock() - init;
       init = clock();
     }
-
+    */
     totalTime = (time(NULL) - segundosIniciais);
     printf("%d\n",(int)totalTime);
   }while( totalTime < t_geracao);
