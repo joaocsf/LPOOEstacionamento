@@ -53,7 +53,7 @@ void * controlador_thread(void * args){
 
   int nr,fd, fd_dummy;
   pthread_t tid;
-  printf("CriarFifo\n");
+  //printf("CriarFifo\n");
 
   if((nr = mkfifo((char *)args, 0644)) == -1){//Creating FIFO
     perror((char *)args);
@@ -65,7 +65,7 @@ void * controlador_thread(void * args){
     perror((char *)args);
     return NULL;
   }
-//printf("Espera\n");
+  //printf("Espera\n");
   if((fd_dummy = open((char *)args,O_WRONLY | O_NONBLOCK)) == -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
@@ -73,13 +73,16 @@ void * controlador_thread(void * args){
     return NULL;
   }
 
+  //printf("Espera2\n");
   Viatura* viaturaTemp;
   while( (viaturaTemp = lerViatura(fd)) !=NULL){
-
+    //printf("Li\n");
     if( viaturaTemp->portaEntrada == 'X'){ //Se Terminou
       close(fd_dummy);
       //printf("Terminar!\n");
       sem_wait(sem);
+      //printf("Wai Sem1!\n");
+
       continue;
     }
 
@@ -98,26 +101,35 @@ void * controlador_thread(void * args){
   if((nr = unlink((char *)args)) == -1){//Deleting FIFO
     perror((char *)args);
 
+    //printf("Wait POST1!\n");
     sem_post(sem);
     return NULL;
   }
 
-  printf("Libertar!\n");
+  //printf("Libertar!\n");
+
+  //printf("Wait POST2!\n");
   sem_post(sem);
   return NULL;
 }
 
 Viatura* lerViatura(int fd){
-  sem_wait(sem);
   Viatura* v = (Viatura *)malloc(sizeof(Viatura *));
-  int returnValue = read(fd,v,sizeof(Viatura));
-  sem_post(sem);
-  if( returnValue == -1 || returnValue == 0){ //Caso nao consiga ler viaturas
-    free(v);
-    return NULL;
-  } else {
-    return v;
+  int tamanho = sizeof(Viatura);
+  int tamanhoLido = 0;
+
+  while(tamanhoLido != tamanho){
+    int returnValue = read(fd,v + tamanhoLido,tamanho-tamanhoLido);
+    if( returnValue == -1 || returnValue == 0){ //Caso nao consiga ler viaturas
+      free(v);
+      return NULL;
+    }
+    tamanhoLido +=returnValue;
+    //printf("Valor Reorno: %d\n",tamanhoLido);
   }
+
+  return v;
+
 }
 
 void mySleep(int ticks){//Recebe os ticks para dormir
@@ -139,7 +151,7 @@ void * arrumador_thread(void * args){
 
   char resposta = 0;
   Viatura * v = (Viatura *)args;
-  printf("Nova Viatura %d\n" , v->numeroID);
+  //printf("Nova Viatura %d\n" , v->numeroID);
 //Criar FIFO
   char fifoViatura[DIRECTORY_LENGTH + FILE_LENGTH] ;
   sprintf(fifoViatura, "/tmp/viatura%d", v->numeroID);
@@ -211,7 +223,7 @@ void exit_handlerDestroySem(){
 }
 
 int main(int argc, char *argv[]){
-
+  exit_handlerDestroySem();
   signal(SIGPIPE, sigPipe);
   if(argc != 3){//Verificação dos argumentos
     printf("Error <Usage>: %s <N_LUGARES> <T_ABERTURA>\n",argv[0]);
@@ -224,7 +236,7 @@ int main(int argc, char *argv[]){
   tempoInicial = times(NULL);
 
   if(t_abertura == 0){
-    printf("Error <T_ABERTURA> must be > 0\n");
+    printf("Error <T_ABERTURA> must be greater than 0\n");
     exit(1);
   }
   atexit(exit_handlerDestroySem);
@@ -248,7 +260,7 @@ int main(int argc, char *argv[]){
   }
 
 /*Criacao das 4 threads controladores relativas as portas do parque*/
-  printf("Writing threads\n");
+  //printf("Writing threads\n");
   pthread_t tN, tS, tE, tO;
   if (pthread_create(&tN, NULL, controlador_thread, "/tmp/fifoN")){//Norte
     printf("Error Creating Thread!\n");
@@ -292,7 +304,7 @@ int main(int argc, char *argv[]){
       break;
     }
     int fd;
-    if((fd = open(msg,O_WRONLY)) == -1){//Opening FIFO with write only
+    if((fd = open(msg,O_WRONLY | O_NONBLOCK)) == -1){//Opening FIFO with write only
       perror(msg);
       close(fd);
       continue;
@@ -308,5 +320,6 @@ int main(int argc, char *argv[]){
   pthread_join(tS,NULL);
   pthread_join(tE,NULL);
   pthread_join(tO,NULL);
+  printf("Done!\n");
   pthread_exit(NULL);
 }

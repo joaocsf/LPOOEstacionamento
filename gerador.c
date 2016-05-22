@@ -111,10 +111,10 @@ void * viatura_thread(void * arg){
     close(fifoDestino);
     sem_post(sem);
     free(viatura);
-    perror(fifoName);
+    //perror(fifoName);
     return NULL;
   }
-
+  //printf("Escrever Viatura: %d\n", viatura->numeroID);
   if( write( fifoDestino, viatura, sizeof(Viatura) ) == -1 ){ //Escrever para o Fifo Controlador
     printf("Error Writing to FIFO Dest\n");
     free(viatura);
@@ -124,11 +124,12 @@ void * viatura_thread(void * arg){
     exit(6);
   }
   close(fifoDestino);
+
   sem_post(sem);
 
   //printf("Entrou!\n");
 
-  //sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
+  sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
 
   int fifoOrigem = 0;
   if( (fifoOrigem = open(fifoName, O_RDONLY)) == -1 ){ //Abrir Fifo leitura
