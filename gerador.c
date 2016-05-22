@@ -23,15 +23,15 @@
 #define BILLION 1000000000
 
 int viatura_ID = 1;
-sem_t * sem = SEM_FAILED;
-
+sem_t * semN = SEM_FAILED;
+sem_t * semS = SEM_FAILED;
+sem_t * semO = SEM_FAILED;
+sem_t * semE = SEM_FAILED;
 
 int fileLog = 0;
 clock_t clockInicial;
-/**
-*
-*
-*/
+
+
 void mySleep(int ticks){//Recebe os ticks para dormir
   double myS = ticks / (double)sysconf(_SC_CLK_TCK);
   struct timespec * req, * rem;
@@ -68,9 +68,45 @@ void debug(unsigned int tempo, int numViatura, char entrada, unsigned int tempoE
 
 }
 
+sem_t* abrirSemaforo(char c){
+
+  sem_t ** tmp;
+  char * path;
+
+  switch (c) {
+    case 'N':
+      path = "/semaforoN";
+      tmp = &semN;
+      break;
+    case 'S':
+      path = "/semaforoS";
+      tmp = &semS;
+      break;
+    case 'O':
+      path = "/semaforoO";
+      tmp = &semO;
+      break;
+    case 'E':
+      path = "/semaforoE";
+      tmp = &semE;
+      break;
+      default:
+        printf("Error opening semaphore: %c\n",c);
+        return NULL;
+  }
+
+  if((*tmp) == SEM_FAILED)
+    if( ((*tmp) = sem_open(path, 0, S_IRWXU, 1)) == SEM_FAILED){
+      return SEM_FAILED;
+    }
+
+    return (*tmp);
+}
+
 void * viatura_thread(void * arg){
 
   clock_t tInicial = times(NULL);
+  sem_t * sem;
 
   Viatura* viatura = (Viatura*)arg;
 
@@ -88,13 +124,15 @@ void * viatura_thread(void * arg){
 
 
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
-  if(sem == SEM_FAILED)
-    if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) == SEM_FAILED){
-      debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
-      unlink(fifoViatura);
-      free(viatura);
-      return NULL;
-    }
+
+  sem = abrirSemaforo(viatura->portaEntrada);
+
+  if(sem == SEM_FAILED){
+    debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+    unlink(fifoViatura);
+    free(viatura);
+    return NULL;
+  }
 
   //printf("A espera de Entrar\n");
 

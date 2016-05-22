@@ -30,11 +30,13 @@ char encerrou = 0;
 int fileLog = 0;
 clock_t tempoInicial;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-sem_t * sem;
+sem_t * semN;
+sem_t * semO;
+sem_t * semE;
+sem_t * semS;
 
 void sigPipe(int id){
   printf("SIG PIPEE!!!!\n");
-
 }
 
 void * arrumador_thread(void * args);
@@ -50,6 +52,26 @@ void debugLog(unsigned int tempo , unsigned int numLugares, unsigned int numeroV
 
 void * controlador_thread(void * args){
 
+  sem_t * sem;
+  char letra = ((char *)args)[9];
+
+  switch (letra) {
+    case 'N':
+      sem = semN;
+      break;
+    case 'S':
+      sem = semS;
+      break;
+    case 'O':
+      sem = semO;
+      break;
+    case 'E':
+      sem = semE;
+      break;
+      default:
+        printf("Error in controller semaphore: %c\n",letra);
+        return NULL;
+  }
 
   int nr,fd, fd_dummy;
   pthread_t tid;
@@ -214,10 +236,28 @@ void * arrumador_thread(void * args){
 
 void exit_handlerDestroySem(){
   /*Tentativa de abertura de um semaforo do menos nome para verificar se ja existe um com esse nome*/
-  if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) != SEM_FAILED){
+  if( (semN = sem_open("/semaforoN", 0, S_IRWXU, 1)) != SEM_FAILED){
     //printf("Semaforo Existe!\n");
-    sem_unlink("/semaforo");
-    sem_destroy(sem);
+    sem_unlink("/semaforoN");
+    sem_destroy(semN);
+  }
+
+  if( (semS = sem_open("/semaforoS", 0, S_IRWXU, 1)) != SEM_FAILED){
+    //printf("Semaforo Existe!\n");
+    sem_unlink("/semaforoS");
+    sem_destroy(semS);
+  }
+
+  if( (semO = sem_open("/semaforoO", 0, S_IRWXU, 1)) != SEM_FAILED){
+    //printf("Semaforo Existe!\n");
+    sem_unlink("/semaforoO");
+    sem_destroy(semO);
+  }
+
+  if( (semE = sem_open("/semaforoE", 0, S_IRWXU, 1)) != SEM_FAILED){
+    //printf("Semaforo Existe!\n");
+    sem_unlink("/semaforoE");
+    sem_destroy(semE);
   }
 
 }
@@ -253,8 +293,26 @@ int main(int argc, char *argv[]){
   write(fileLog, "t(ticks) ; n_lug ; id_viat ; observ\n" ,37);
 
   /*Abertura e criacao de um semaforo para sincronizacao de ambos os programas*/
-  if((sem = sem_open("/semaforo",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
-    perror("/semaforo");
+  if((semN = sem_open("/semaforoN",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
+    perror("/semaforoN");
+    printf("Error!\n");
+    exit(3);
+  }
+
+  if((semS = sem_open("/semaforoS",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
+    perror("/semaforoS");
+    printf("Error!\n");
+    exit(3);
+  }
+
+  if((semO = sem_open("/semaforoO",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
+    perror("/semaforoO");
+    printf("Error!\n");
+    exit(3);
+  }
+
+  if((semE = sem_open("/semaforoE",O_CREAT, S_IRWXU,1)) == SEM_FAILED){
+    perror("/semaforoE");
     printf("Error!\n");
     exit(3);
   }
