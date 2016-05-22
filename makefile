@@ -1,4 +1,4 @@
-all: gerador parque
+Projeto2: gerador parque
 
 gerador: gerador.c viatura.h
 	gcc gerador.c -Wall -lpthread -o gerador
