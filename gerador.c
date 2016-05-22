@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/times.h>
 #include <fcntl.h>
 #include <semaphore.h>
 
@@ -19,7 +20,7 @@
 
 #define DIRECTORY_LENGTH 4096
 #define FILE_LENGTH 255
-#define MILLION 1000000
+#define BILLION 1000000000
 
 int viatura_ID = 1;
 sem_t * sem = SEM_FAILED;
@@ -32,18 +33,18 @@ clock_t clockInicial;
 *
 */
 void mySleep(int ticks){//Recebe os ticks para dormir
-  double myS = (double)ticks / sysconf(_SC_CLK_TCK);
+  double myS = ticks / (double)sysconf(_SC_CLK_TCK);
   struct timespec * req, * rem;
   req = malloc(sizeof(struct timespec));
   rem = malloc(sizeof(struct timespec));
-  req->tv_sec = myS;
-  req->tv_nsec = (long)(myS - req->tv_sec) * MILLION;
+  req->tv_sec = myS / 1;
+  req->tv_nsec = (long)((myS - req->tv_sec) * BILLION);
+
   if(nanosleep(req,rem) != 0){
     nanosleep(rem,NULL);
   }
   free(req);
   free(rem);
-  return;
 }
 
 void sigPipe(int id){
@@ -69,7 +70,7 @@ void debug(unsigned int tempo, int numViatura, char entrada, unsigned int tempoE
 
 void * viatura_thread(void * arg){
 
-  clock_t tInicial = clock();
+  clock_t tInicial = times(NULL);
 
   Viatura* viatura = (Viatura*)arg;
 
@@ -89,28 +90,28 @@ void * viatura_thread(void * arg){
   sprintf(fifoName, "/tmp/fifo%c", viatura->portaEntrada);
   if(sem == SEM_FAILED)
     if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) == SEM_FAILED){
-      debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+      debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
       unlink(fifoViatura);
       free(viatura);
       return NULL;
     }
 
-  printf("A espera de Entrar\n");
+  //printf("A espera de Entrar\n");
 
 
   sem_wait(sem);
-  printf("Dentro da seccao critica\n");
+  //printf("Dentro da seccao critica\n");
 
   int fifoDestino = 0;
   if( (fifoDestino = open(fifoName, O_WRONLY | O_NONBLOCK)) == -1){ //Abrir FifoControlador
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
-    printf("SeccaoCritica, nao consigo abrir!\n");
+    debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+    //printf("SeccaoCritica, nao consigo abrir!\n");
 
     unlink(fifoViatura);
     close(fifoDestino);
     sem_post(sem);
     free(viatura);
-    //perror(fifoName);
+    perror(fifoName);
     return NULL;
   }
 
@@ -125,9 +126,9 @@ void * viatura_thread(void * arg){
   close(fifoDestino);
   sem_post(sem);
 
-  printf("Entrou!\n");
+  //printf("Entrou!\n");
 
-  sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
+  //sprintf(fifoName, "/tmp/viatura%d", viatura->numeroID);
 
   int fifoOrigem = 0;
   if( (fifoOrigem = open(fifoName, O_RDONLY)) == -1 ){ //Abrir Fifo leitura
@@ -138,7 +139,7 @@ void * viatura_thread(void * arg){
   }
 
 
-  printf("Esperando para leitura!\n");
+  //printf("Esperando para leitura!\n");
 
   char info;
   int res = 0;
@@ -151,9 +152,9 @@ void * viatura_thread(void * arg){
 
 
   if(info == RES_ENTRADA){
-    printf("Entrou!\n");
+    //printf("Entrou!\n");
 
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "entrada");
+    debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "entrada");
 
     if( (res = read(fifoOrigem, &info, sizeof(char) )) == -1){
       printf("Error Reading fifo!");
@@ -163,21 +164,21 @@ void * viatura_thread(void * arg){
     }
 
   }else if(info == RES_CHEIO){
-    printf("Estava Cheio!\n");
+    //printf("Estava Cheio!\n");
 
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
+    debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "cheio!");
 
 
   }else if(info == RES_ENCERRADO){
-    printf("Estava Encerrado!\n");
+    //printf("Estava Encerrado!\n");
 
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
+    debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento, -1 , "");
   }
 
   if(info == RES_SAIDA){
-    printf("Acabei de SAIR!!\n");
+    //printf("Acabei de SAIR!!\n");
 
-    debug((int)(clock() - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(clock() - tInicial), "saida");
+    debug((int)(times(NULL) - clockInicial) , viatura->numeroID , viatura->portaEntrada, viatura->tempoEstacionamento,(int)(times(NULL) - tInicial), "saida");
   }
 
   free(viatura);
@@ -209,7 +210,7 @@ int main(int argn, char *argv[]){
   int t_geracao = atoi(argv[1]);
   u_relogio = atoi(argv[2]);
 
-  clockInicial = clock();
+  clockInicial = times(NULL);
 
   time_t segundosIniciais = time(NULL);
   time_t totalTime = 0;

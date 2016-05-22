@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/times.h>
 #include <fcntl.h>
 #include <semaphore.h>
 #include <signal.h>
@@ -20,7 +21,7 @@
 
 #define DIRECTORY_LENGTH 4096
 #define FILE_LENGTH 255
-#define MILLION 1000000
+#define BILLION 1000000000
 
 int n_total_lugares;
 int lugares_ocupados = 0;
@@ -59,12 +60,12 @@ void * controlador_thread(void * args){
     return NULL;
   }
 
-  printf("Abertura\n");
+  //printf("Abertura\n");
   if((fd = open((char *)args,O_RDONLY)) == -1){//Opening FIFO with read only
     perror((char *)args);
     return NULL;
   }
-printf("Espera\n");
+//printf("Espera\n");
   if((fd_dummy = open((char *)args,O_WRONLY | O_NONBLOCK)) == -1){//Opening FIFO with write only
     perror((char *)args);
     close(fd);
@@ -74,10 +75,10 @@ printf("Espera\n");
 
   Viatura* viaturaTemp;
   while( (viaturaTemp = lerViatura(fd)) !=NULL){
-    printf("Nova Viatura\n");
+
     if( viaturaTemp->portaEntrada == 'X'){ //Se Terminou
       close(fd_dummy);
-      printf("Terminar!\n");
+      //printf("Terminar!\n");
       sem_wait(sem);
       continue;
     }
@@ -107,8 +108,10 @@ printf("Espera\n");
 }
 
 Viatura* lerViatura(int fd){
+  sem_wait(sem);
   Viatura* v = (Viatura *)malloc(sizeof(Viatura *));
   int returnValue = read(fd,v,sizeof(Viatura));
+  sem_post(sem);
   if( returnValue == -1 || returnValue == 0){ //Caso nao consiga ler viaturas
     free(v);
     return NULL;
@@ -118,25 +121,25 @@ Viatura* lerViatura(int fd){
 }
 
 void mySleep(int ticks){//Recebe os ticks para dormir
-  double myS = ticks / sysconf(_SC_CLK_TCK);
+  double myS = ticks / (double)sysconf(_SC_CLK_TCK);
   struct timespec * req, * rem;
   req = malloc(sizeof(struct timespec));
   rem = malloc(sizeof(struct timespec));
   req->tv_sec = myS / 1;
-  req->tv_nsec = (long)(myS - req->tv_sec) * MILLION;
+  req->tv_nsec = (long)((myS - req->tv_sec) * BILLION);
+
   if(nanosleep(req,rem) != 0){
     nanosleep(rem,NULL);
   }
   free(req);
   free(rem);
-  return;
 }
 
 void * arrumador_thread(void * args){
 
   char resposta = 0;
   Viatura * v = (Viatura *)args;
-
+  printf("Nova Viatura %d\n" , v->numeroID);
 //Criar FIFO
   char fifoViatura[DIRECTORY_LENGTH + FILE_LENGTH] ;
   sprintf(fifoViatura, "/tmp/viatura%d", v->numeroID);
@@ -152,16 +155,16 @@ void * arrumador_thread(void * args){
   pthread_mutex_lock(&mutex);//Secção Critica
   if(encerrou){
     resposta = RES_ENCERRADO;
-    debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "encerrado");
+    debugLog(times(NULL) - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "encerrado");
   } else {
     if(n_total_lugares == lugares_ocupados){
       resposta = RES_CHEIO;
 
-      debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "cheio");
+      debugLog(times(NULL) - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "cheio");
     }else {
       lugares_ocupados++;
       resposta = RES_ENTRADA;
-      debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "estacionamento");
+      debugLog(times(NULL) - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "estacionamento");
     }
   }
   pthread_mutex_unlock(&mutex);
@@ -188,7 +191,7 @@ void * arrumador_thread(void * args){
 
   pthread_mutex_lock(&mutex);//Seccção Critica
 
-  debugLog(clock() - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "saida");
+  debugLog(times(NULL) - tempoInicial , n_total_lugares -  lugares_ocupados , v->numeroID, "saida");
   lugares_ocupados--;
 
   pthread_mutex_unlock(&mutex);
@@ -200,7 +203,7 @@ void * arrumador_thread(void * args){
 void exit_handlerDestroySem(){
   /*Tentativa de abertura de um semaforo do menos nome para verificar se ja existe um com esse nome*/
   if( (sem = sem_open("/semaforo", 0, S_IRWXU, 1)) != SEM_FAILED){
-    printf("Semaforo Existe!\n");
+    //printf("Semaforo Existe!\n");
     sem_unlink("/semaforo");
     sem_destroy(sem);
   }
@@ -218,7 +221,7 @@ int main(int argc, char *argv[]){
 
   n_total_lugares = atoi(argv[1]);
   t_abertura = atoi(argv[2]);
-  tempoInicial = clock();
+  tempoInicial = times(NULL);
 
   if(t_abertura == 0){
     printf("Error <T_ABERTURA> must be > 0\n");
