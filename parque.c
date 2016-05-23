@@ -162,9 +162,13 @@ void mySleep(int ticks){//Recebe os ticks para dormir
   req->tv_sec = myS / 1;
   req->tv_nsec = (long)((myS - req->tv_sec) * BILLION);
 
-  if(nanosleep(req,rem) != 0){
-    nanosleep(rem,NULL);
+  int nr;
+  while((nr = nanosleep(req,rem)) != 0){
+    nr = nanosleep(rem,req);
+    if(nr == 0)
+      break;
   }
+
   free(req);
   free(rem);
 }
