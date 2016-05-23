@@ -228,11 +228,29 @@ void * viatura_thread(void * arg){
 
 
 int main(int argn, char *argv[]){
+
+
+
   printf("%lu\n", sysconf(_SC_CLK_TCK));
   if(argn != 3){
     printf("Error <Usage>: %s <T_GERACAO> <U_RELOGIO>\n",  argv[0]);
     return 1;
   }
+
+  int u_relogio = 10;
+
+  int t_geracao = atoi(argv[1]);
+  u_relogio = atoi(argv[2]);
+
+  if(t_geracao <= 0){
+    printf("Error <T_GERACAO> must be greater than 0\n");
+    return 1;
+  }
+  if(u_relogio <= 0){
+    printf("Error <U_RELOGIO> must be greater than 0\n");
+    return 1;
+  }
+
   char path[DIRECTORY_LENGTH + FILE_LENGTH];
   realpath(".", path);
   sprintf(path, "%s/%s", path, "gerador.log");
@@ -244,10 +262,6 @@ int main(int argn, char *argv[]){
 
   write(fileLog, " t(ticks)  ; id_viat ; destin ; t_estacion ; t_vida ; observ\n" ,62);
 
-  unsigned int u_relogio = 10;
-
-  int t_geracao = atoi(argv[1]);
-  u_relogio = atoi(argv[2]);
 
   clockInicial = times(NULL);
 

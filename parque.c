@@ -275,7 +275,12 @@ int main(int argc, char *argv[]){
   t_abertura = atoi(argv[2]);
   tempoInicial = times(NULL);
 
-  if(t_abertura == 0){
+  if(n_total_lugares <= 0){
+    printf("Erro <N_LUGARES> must be greater than 0\n");
+    exit(1);
+  }
+
+  if(t_abertura <= 0){
     printf("Error <T_ABERTURA> must be greater than 0\n");
     exit(1);
   }
