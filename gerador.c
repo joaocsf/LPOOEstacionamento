@@ -264,10 +264,14 @@ int main(int argn, char *argv[]){
     exit(3);
   }
 
+  clockInicial = times(NULL);
+
+  char string[DIRECTORY_LENGTH];
+  sprintf(string, "Tick inicial : %lu\n", clockInicial);
+  write(fileLog, string, strlen(string));
   write(fileLog, " t(ticks)  ; id_viat ; destin ; t_estacion ; t_vida ; observ\n" ,62);
 
 
-  clockInicial = times(NULL);
 
   time_t segundosIniciais = time(NULL);
   time_t totalTime = 0;

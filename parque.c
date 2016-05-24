@@ -299,6 +299,9 @@ int main(int argc, char *argv[]){
     exit(2);
   }
 
+  char string[DIRECTORY_LENGTH];
+  sprintf(string, "Tick inicial : %lu\n", tempoInicial);
+  write(fileLog, string, strlen(string));
   write(fileLog, "t(ticks) ; n_lug ; id_viat ; observ\n" ,37);
 
   /*Abertura e criacao de um semaforo para sincronizacao de ambos os programas*/
